@@ -1,0 +1,3 @@
+timestamp: 2026-07-20T22:02:34.771201
+kind: ReadTimeout
+detail: Ollama at http://localhost:11434 timed out after 300s
