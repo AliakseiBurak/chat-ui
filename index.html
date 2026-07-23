@@ -87,6 +87,7 @@
     let historyIndex = -1;
 
     const STORAGE_KEY = 'ollama-chat-history';
+    const MODEL_KEY = 'ollama-selected-model';
 
     function saveChat() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(chatHistory));
@@ -296,10 +297,18 @@
           option.textContent = model;
           modelSelect.appendChild(option);
         });
+        const saved = localStorage.getItem(MODEL_KEY);
+        if (saved && data.models.includes(saved)) {
+          modelSelect.value = saved;
+        }
       } catch (err) {
         modelSelect.innerHTML = '<option>Error loading models</option>';
       }
     }
+
+    modelSelect.addEventListener('change', () => {
+      localStorage.setItem(MODEL_KEY, modelSelect.value);
+    });
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
