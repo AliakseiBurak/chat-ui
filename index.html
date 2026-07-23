@@ -41,7 +41,6 @@
     .message-wrap:hover .copy-btn { opacity: 1; }
     .copy-btn:hover { background: #d1d5db; }
     .copy-btn.copied { background: #059669; color: white; }
-    #pasteBtn { padding: 12px 15px; background: #6b7280; }
     .mic-wrap { display: flex; align-items: center; gap: 4px; }
     #volumeBar { width: 60px; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; display: none; }
     #volumeBarInner { height: 100%; width: 0%; background: #22c55e; border-radius: 3px; transition: width 0.05s; }
@@ -68,7 +67,6 @@
         <div id="volumeBar"><div id="volumeBarInner"></div></div>
       </div>
       <textarea id="userInput" placeholder="Type your message..." required autofocus rows="1"></textarea>
-      <button type="button" id="pasteBtn" title="Paste from clipboard">📋</button>
       <button type="submit" id="sendBtn">Send</button>
     </form>
   </div>
@@ -83,7 +81,6 @@
     const statusDiv = document.getElementById('status');
     const modelSelect = document.getElementById('modelSelect');
     const savePdfBtn = document.getElementById('savePdfBtn');
-    const pasteBtn = document.getElementById('pasteBtn');
     
     let chatHistory = [];
     let messageHistory = [];
@@ -432,13 +429,6 @@
         document.body.appendChild(a);
         a.click();
         a.remove();
-    });
-
-    pasteBtn.addEventListener('click', async () => {
-      const text = await navigator.clipboard.readText();
-      input.value = text;
-      autoResize();
-      input.focus();
     });
 
     // Load models, restore chat, and focus input on load
