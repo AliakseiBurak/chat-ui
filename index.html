@@ -253,8 +253,13 @@
             }
             if (data.done) {
               if (botWrap) {
-                const modelSpan = botWrap.querySelector('.model-info');
-                if (modelSpan) modelSpan.textContent = `Model: ${data.model}`;
+                let modelSpan = botWrap.querySelector('.model-info');
+                if (!modelSpan) {
+                  modelSpan = document.createElement('span');
+                  modelSpan.className = 'model-info';
+                  botWrap.appendChild(modelSpan);
+                }
+                modelSpan.textContent = `Model: ${data.model}`;
                 chatHistory.push({ role: 'bot', text: fullReply, model: data.model });
                 saveChat();
               }
