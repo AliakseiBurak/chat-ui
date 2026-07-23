@@ -2,6 +2,10 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from reportlab.lib.pagesizes import letter
+from reportlab.lib.units import inch
+from reportlab.lib.colors import HexColor
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 import requests
 import os
@@ -9,6 +13,9 @@ import io
 import json
 import time
 from datetime import datetime
+
+pdfmetrics.registerFont(TTFont("DejaVu", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"))
+pdfmetrics.registerFont(TTFont("DejaVu-Bold", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"))
 
 LOG_DIR = "log"
 SESSION_DIR = os.path.join(LOG_DIR, "sessions")
@@ -108,24 +115,77 @@ async def chat(request: Request):
 async def export_chat(request: Request):
     data = await request.json()
     chat_history = data.get("history", [])
-    
+
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
-    c.drawString(100, 750, "Chat History")
-    
-    y = 730
+    width, height = letter
+    margin = 50
+    y = height - margin
+    line_height = 18
+
+    c.setFont("DejaVu-Bold", 16)
+    c.setFillColor(HexColor("#2563eb"))
+    c.drawString(margin, y, "Chat History")
+    y -= 8
+    c.setStrokeColor(HexColor("#e5e7eb"))
+    c.line(margin, y, width - margin, y)
+    y -= 20
+
+    user_color = HexColor("#1e3a8a")
+    bot_color = HexColor("#111827")
+    user_bg = HexColor("#dbeafe")
+    bot_bg = HexColor("#f3f4f6")
+    label_color = HexColor("#6b7280")
+
     for entry in chat_history:
-        # Sanitize text: remove non-ASCII characters
-        sanitized_text = entry['text'].encode('ascii', 'ignore').decode('ascii')
-        c.drawString(100, y, f"{entry['role'].capitalize()}: {sanitized_text}")
-        y -= 20
-        if y < 50:
+        if y < 60:
             c.showPage()
-            y = 750
-            
+            y = height - margin
+
+        text = entry.get("text", "")
+        role = entry.get("role", "user")
+        model = entry.get("model")
+        elapsed = entry.get("elapsed_secs")
+
+        bg = user_bg if role == "user" else bot_bg
+        fg = user_color if role == "user" else bot_color
+
+        # Draw role label
+        c.setFont("DejaVu-Bold", 9)
+        c.setFillColor(label_color)
+        label = role.capitalize()
+        if model:
+            label += f"  |  {model}"
+            if elapsed:
+                label += f"  |  {elapsed}s"
+        c.drawString(margin + 4, y + 2, label)
+        y -= 14
+
+        # Draw message text with word wrap
+        c.setFont("DejaVu", 10)
+        c.setFillColor(fg)
+        words = text.split()
+        line = ""
+        for word in words:
+            test = line + (" " if line else "") + word
+            if c.stringWidth(test, "DejaVu", 10) < width - 2 * margin - 16:
+                line = test
+            else:
+                c.drawString(margin + 8, y, line)
+                y -= line_height
+                line = word
+                if y < 50:
+                    c.showPage()
+                    y = height - margin
+                    c.setFont("DejaVu", 10)
+                    c.setFillColor(fg)
+        if line:
+            c.drawString(margin + 8, y, line)
+            y -= line_height + 4
+
     c.save()
     buffer.seek(0)
-    
+
     return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": "attachment; filename=chat.pdf"})
 
 if __name__ == "__main__":
