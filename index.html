@@ -100,7 +100,7 @@
         chatHistory = [];
         messagesDiv.innerHTML = '';
         entries.forEach(e => {
-          addMessage(e.text, e.role, e.model);
+          addMessage(e.text, e.role, e.model, true, e.elapsed_secs);
         });
       } catch (e) {
         // ignore corrupted data
@@ -239,7 +239,7 @@
       micBtn.style.display = 'none';
     }
 
-    function addMessage(text, role, model = null, save = true) {
+    function addMessage(text, role, model = null, save = true, elapsed_secs = null) {
       const wrap = document.createElement('div');
       wrap.className = `message ${role} message-wrap`;
       wrap.dataset.fullText = text;
@@ -264,14 +264,16 @@
       if (model) {
         const modelSpan = document.createElement('span');
         modelSpan.className = 'model-info';
-        modelSpan.textContent = `Model: ${model}`;
+        const parts = [`Model: ${model}`];
+        if (elapsed_secs != null) parts.push(`${elapsed_secs}s`);
+        modelSpan.textContent = parts.join(' · ');
         wrap.appendChild(modelSpan);
       }
       
       messagesDiv.appendChild(wrap);
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
       if (save) {
-        chatHistory.push({ role, text, model });
+        chatHistory.push({ role, text, model, elapsed_secs });
         saveChat();
       }
       return wrap;
@@ -361,12 +363,11 @@
                   modelSpan.className = 'model-info';
                   botWrap.appendChild(modelSpan);
                 }
-                modelSpan.textContent = `Model: ${data.model}`;
-                chatHistory.push({ role: 'bot', text: fullReply, model: data.model });
+                const elapsed = data.elapsed_secs || Math.floor((Date.now() - startTime) / 1000);
+                modelSpan.textContent = `Model: ${data.model} · ${elapsed}s`;
+                chatHistory.push({ role: 'bot', text: fullReply, model: data.model, elapsed_secs: elapsed });
                 saveChat();
               }
-              const totalSecs = Math.floor((Date.now() - startTime) / 1000);
-              statusDiv.textContent = `Completed in ${totalSecs}s`;
             }
           }
         }
