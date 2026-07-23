@@ -28,7 +28,7 @@ pip install -r requirements.txt && python3 app.py
 - Both are best-effort — failures are silently caught.
 
 ## Git workflow
-After making changes, show `git diff` for review. Wait for user approval before committing. Commit with `git add -A && git commit -m "message" && git push`. Write a short summary line followed by a blank line and deeper bullet-point description when the change is non-trivial.
+After making changes, show `git diff` for review. Wait for user approval before committing. Commit with `git add -A && git commit -m "message"`. Write a short summary line followed by a blank line and deeper bullet-point description when the change is non-trivial.
 
 ## Conventions
 - No linter, typechecker, or test framework configured.
