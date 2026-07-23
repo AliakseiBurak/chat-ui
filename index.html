@@ -43,6 +43,9 @@
     .copy-btn:hover { background: #d1d5db; }
     .copy-btn.copied { background: #059669; color: white; }
     #pasteBtn { padding: 12px 15px; background: #6b7280; }
+    .mic-wrap { display: flex; align-items: center; gap: 4px; }
+    #volumeBar { width: 60px; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; display: none; }
+    #volumeBarInner { height: 100%; width: 0%; background: #22c55e; border-radius: 3px; transition: width 0.05s; }
   </style>
 </head>
 <body>
@@ -61,7 +64,10 @@
         <div class="status" id="status"></div>
     </div>
     <form class="input-area" id="chatForm">
-      <button type="button" id="micBtn" title="Dictate">🎤</button>
+      <div class="mic-wrap">
+        <button type="button" id="micBtn" title="Dictate">🎤</button>
+        <div id="volumeBar"><div id="volumeBarInner"></div></div>
+      </div>
       <textarea id="userInput" placeholder="Type your message..." required autofocus rows="1"></textarea>
       <button type="button" id="pasteBtn" title="Paste from clipboard">📋</button>
       <button type="submit" id="sendBtn">Send</button>
@@ -108,33 +114,133 @@
     // Voice Recognition Setup
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     let recognition;
-    if (SpeechRecognition) {
-        recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.lang = 'en-US';
-        recognition.interimResults = false;
+    let isListening = false;
+    let dictationCursorPrefix = '';
+    let dictatedText = '';
+    let audioContext = null;
+    let analyser = null;
+    let dataArray = null;
+    let source = null;
+    let stream = null;
+    let animFrame = null;
+    const volumeBar = document.getElementById('volumeBar');
+    const volumeBarInner = document.getElementById('volumeBarInner');
 
-        recognition.onstart = () => {
-            micBtn.style.backgroundColor = '#ef4444'; // Red while recording
-            statusDiv.textContent = 'Listening...';
-            statusDiv.style.display = 'block';
-        };
+    function startVolumeMeter() {
+      navigator.mediaDevices.getUserMedia({ audio: true }).then(s => {
+        stream = s;
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        source = audioContext.createMediaStreamSource(stream);
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+        volumeBar.style.display = 'block';
+        updateVolume();
+      }).catch(() => {});
+    }
 
-        recognition.onresult = (event) => {
-            const transcript = event.results[0][0].transcript;
-            input.value = transcript;
-        };
+    function updateVolume() {
+      if (!analyser) return;
+      analyser.getByteFrequencyData(dataArray);
+      const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+      const pct = Math.min(100, (avg / 255) * 200);
+      volumeBarInner.style.width = pct + '%';
+      volumeBarInner.style.background = pct > 60 ? '#ef4444' : pct > 30 ? '#f59e0b' : '#22c55e';
+      animFrame = requestAnimationFrame(updateVolume);
+    }
 
-        recognition.onend = () => {
-            micBtn.style.backgroundColor = '#2563eb'; // Reset color
-            statusDiv.style.display = 'none';
-        };
+    function stopVolumeMeter() {
+      cancelAnimationFrame(animFrame);
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      if (audioContext) audioContext.close();
+      stream = null; audioContext = null; analyser = null; source = null;
+      volumeBar.style.display = 'none';
+      volumeBarInner.style.width = '0%';
+    }
 
-        micBtn.addEventListener('click', () => {
-            recognition.start();
-        });
-    } else {
-        micBtn.style.display = 'none'; // Hide if not supported
+    function stopListening() {
+      if (recognition) {
+        recognition.abort();
+        recognition.stop();
+      }
+      isListening = false;
+      micBtn.style.backgroundColor = '#2563eb';
+      micBtn.title = 'Dictate';
+      micBtn.textContent = '🎤';
+      if (statusDiv.textContent.includes('Listening')) {
+        statusDiv.style.display = 'none';
+      }
+      stopVolumeMeter();
+      dictatedText = '';
+      dictationCursorPrefix = '';
+    }
+
+    function startListening() {
+      if (!SpeechRecognition) return;
+      isListening = true;
+      dictatedText = '';
+      dictationCursorPrefix = input.value.substring(0, input.selectionStart || 0);
+      recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.lang = 'en-US';
+      recognition.interimResults = true;
+
+      recognition.onstart = () => {
+        micBtn.style.backgroundColor = '#ef4444';
+        micBtn.title = 'Stop dictation';
+        micBtn.textContent = '⏹';
+        statusDiv.textContent = 'Listening...';
+        statusDiv.style.display = 'block';
+        startVolumeMeter();
+      };
+
+      recognition.onresult = (event) => {
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const result = event.results[i];
+          if (result.isFinal) {
+            dictatedText += (dictatedText ? ' ' : '') + result[0].transcript;
+          } else {
+            interim = result[0].transcript;
+          }
+        }
+        const suffix = (dictatedText + ' ' + interim).trim();
+        input.value = dictationCursorPrefix + (dictationCursorPrefix && suffix ? ' ' : '') + suffix;
+        const cursor = input.value.length;
+        input.setSelectionRange(cursor, cursor);
+        input.dispatchEvent(new Event('input'));
+      };
+
+      recognition.onerror = (event) => {
+        if (event.error === 'aborted') return;
+        statusDiv.textContent = `Mic error: ${event.error}`;
+        statusDiv.style.display = 'block';
+        stopListening();
+        setTimeout(() => { statusDiv.style.display = 'none'; }, 3000);
+      };
+
+      recognition.onend = () => {
+        if (isListening) {
+          dictationCursorPrefix = input.value.substring(0, input.selectionStart || 0);
+          dictatedText = '';
+          try { recognition.start(); } catch (e) {}
+        }
+      };
+
+      recognition.start();
+    }
+
+    micBtn.addEventListener('click', () => {
+      if (isListening) {
+        stopListening();
+      } else {
+        startListening();
+      }
+    });
+
+    if (!SpeechRecognition) {
+      micBtn.style.display = 'none';
     }
 
     function addMessage(text, role, model = null, save = true) {
