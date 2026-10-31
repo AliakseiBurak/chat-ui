@@ -13,6 +13,9 @@ import io
 import json
 import time
 from datetime import datetime
+from dotenv import load_dotenv
+
+load_dotenv()
 
 pdfmetrics.registerFont(TTFont("DejaVu", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"))
 pdfmetrics.registerFont(TTFont("DejaVu-Bold", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"))
@@ -48,6 +51,12 @@ def _log_error(kind: str, detail: str):
         pass
 
 app.mount("/static", StaticFiles(directory="."), name="static")
+
+@app.middleware("http")
+async def block_dotfiles(request: Request, call_next):
+    if "/static/." in request.url.path:
+        return JSONResponse({"detail": "Not Found"}, status_code=404)
+    return await call_next(request)
 
 @app.get("/.well-known/{path:path}")
 async def well_known():
@@ -190,4 +199,4 @@ async def export_chat(request: Request):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="localhost", port=int(os.getenv("PORT", "8080")))
+    uvicorn.run(app, host="localhost", port=int(os.getenv("PORT", "8888")))
